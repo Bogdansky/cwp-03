@@ -6,6 +6,7 @@ let sid = 0;
 
 const server = net.createServer((client) => {
 
+    client.count = 0;
     client.needs = '';
     client.start = false;
     client.id = Date.now()+ ++sid;
@@ -18,7 +19,11 @@ const server = net.createServer((client) => {
     client.on('data', (data) => {
         streamer.write(data+"\n");
         if (!client.start){
+            if (client.count > console.env.COUNT) {
+                client.end();
+            }
             client.start = true;
+            client.count = sid++;
             if (data === 'QA') {
                 client.needs = 'questions';
                 streamer.write("Server: ACK\n");
@@ -43,18 +48,13 @@ const server = net.createServer((client) => {
             }
             else if (client.needs === 'files'){
                 let file = data.split('^|^');
-                let fd = fs.openSync(`files\\${file[0]}`, 'w');
+                let fd = fs.openSync(`${process.env.DIRECTORY}\\${file[0]}`, 'w');
                 fs.write(fd, file[1], (err, written) => {
                     if (err) throw err;
                     fs.close(fd, (err) => {
                         client.write('Taked!');
                     });
                 });
-                // fs.writeFile(`${client.id}\\${file[0]}`, file[1], (error) => {
-                //     if (error) throw error;
-                //     console.log(`${file[0]} was saved!`);
-                //     streamer.write(`${file[0]} was saved!`);
-                // });
             }
         }
     });
@@ -64,11 +64,13 @@ const server = net.createServer((client) => {
         streamer.write(`Client ${client.id} disconnected\n`);
         streamer.end();
         client.start = client.needs = client.needs & 0;
+        sid--;
     });
 
     client.on('error', (error) => {
         console.log(error.message);
         streamer.end();
+        sid--;
         server.close();
     });
 });
